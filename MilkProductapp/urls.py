@@ -50,6 +50,8 @@ from .views import (  # Import views from the current application
     delete_product, list_brands, list_products_by_brand, supplier_home
   
 )
+from django.conf import settings
+from django.conf.urls.static import static
 
 
 # Create a router instance for registering viewsets
@@ -109,3 +111,5 @@ urlpatterns = [
 
 # Include the router's URLs in the urlpatterns
 urlpatterns += router.urls
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
