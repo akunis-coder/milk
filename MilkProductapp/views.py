@@ -137,25 +137,28 @@ def logout(request):
     return Response({'success': True, 'message': 'Logged out successfully'})
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])  # Ensure user is authenticated
+@permission_classes([IsAuthenticated])
 def home(request):
     try:
-        user_profile = get_object_or_404(UserProfile, user_registration=request.user.userregistration)
+        user_registration = getattr(request.user, 'userregistration', None)
+        if not user_registration:
+            return Response({'error': 'User registration not found'}, status=404)
+        user_profile = UserProfile.objects.get(user_registration=user_registration)
         user_mobile_number = user_profile.user_registration.mobile_number
-       
         is_supplier = SupplierCustomerRelation.objects.filter(supplier_mobile_number=user_mobile_number).exists()
         is_customer = SupplierCustomerRelation.objects.filter(customer_mobile_number=user_mobile_number).exists()
-       
         if is_supplier and is_customer:
             return Response({'redirect': 'supplier_customer_home'})
         elif is_customer:
             return Response({'redirect': 'customer_home'})
         else:
             return Response({'redirect': 'customer_home'})
-   
+ 
+    except UserProfile.DoesNotExist:
+        return Response({'error': 'User profile not found'}, status=404)
     except Exception as e:
-        return Response({'error': str(e)}, status=500)  # Return error details
-
+        return Response({'error': str(e)}, status=500)
+    
 # @api_view(['GET'])
 # # @permission_classes([IsAuthenticated])  # Ensure user is authenticated
 # def home(request):
