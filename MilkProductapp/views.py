@@ -137,6 +137,7 @@ def logout(request):
     return Response({'success': True, 'message': 'Logged out successfully'})
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])  # Ensure user is authenticated
 def home(request):
     try:
         user_profile = get_object_or_404(UserProfile, user_registration=request.user.userregistration)
@@ -151,8 +152,9 @@ def home(request):
             return Response({'redirect': 'customer_home'})
         else:
             return Response({'redirect': 'customer_home'})
+   
     except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        return Response({'error': str(e)}, status=500)  # Return error details
 
 # @api_view(['GET'])
 # # @permission_classes([IsAuthenticated])  # Ensure user is authenticated

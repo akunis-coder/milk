@@ -12,6 +12,5 @@ urlpatterns = [
     # Include URLs from the MilkProductapp application under the 'api/' route
     path('api/', include('MilkProductapp.urls')),  
 
-] 
-if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+]
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
