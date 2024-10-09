@@ -232,6 +232,44 @@ def get_suppliers(request):
     else:
         return Response({'suppliers': [], 'message': 'No suppliers with invoices found.'})
     
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])  # Ensure user is authenticated
+# def products(request):
+#     user_mobile = request.user.userregistration.mobile_number  # Get current user's mobile number
+#     supplier_relation = SupplierCustomerRelation.objects.filter(customer_mobile_number=user_mobile).order_by('-updated_at').first()
+#     if not supplier_relation:
+#         return Response({'success': False, 'message': "No supplier selected"}, status=400)
+#     supplier_mobile = supplier_relation.supplier_mobile_number
+#     products = Product.objects.all()
+#     product_list = []
+#     for product in products:
+#         if isinstance(product.productPrice, Decimal128):
+#             base_price = float(product.productPrice.to_decimal())  # Convert to Decimal first
+#         else:
+#             base_price = float(product.productPrice)  # Handle other types, if necessary
+#         try:
+#             relationship = SupplierCustomerRelation.objects.get(supplier_mobile_number=supplier_mobile,customer_mobile_number=user_mobile)
+#             negotiated_price = NegotiablePrice.objects.filter(relationship=relationship,product__productid=product.productid).first()
+#             if negotiated_price:
+#                 final_price = negotiated_price.final_price
+#             else:
+#                 final_price = base_price
+#         except SupplierCustomerRelation.DoesNotExist:
+#             final_price = base_price  # Default to base price if no relationship found
+#             logger.info("No relationship found between the customer and supplier.")
+#         except NegotiablePrice.DoesNotExist:
+#             final_price = base_price  # Default to base price if no negotiated price found
+#         if isinstance(final_price, Decimal):
+#             final_price = float(final_price)
+#         elif hasattr(final_price, 'to_decimal'):
+#             final_price = float(final_price.to_decimal())
+#         logger.info(f"Final price for product {product.productid}: {final_price}")
+#         brand_name = getattr(product.brandID, 'brandName', 'Unknown Brand')  # Handle missing brand
+#         image_url = request.build_absolute_uri(product.productImage.url) if product.productImage else None
+#         product_data = {'id': product.productid,'Final_Price': final_price,'image_url': image_url,'category': product.productCategory,'type': product.productType,'volume': product.productVolume,'description': product.productDescription,'brand': brand_name}
+#         product_list.append(product_data)
+#     return Response({'success': True, 'products': product_list})
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])  # Ensure user is authenticated
 def products(request):
