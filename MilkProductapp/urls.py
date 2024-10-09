@@ -107,9 +107,8 @@ urlpatterns = [
     path('products/brand/<str:brandID>/', list_products_by_brand, name='list_products_by_brand'),
     path('brands/<str:brandID>/delete/', BrandDeleteView.as_view(), name='brand-delete'),
     path('products/<str:productid>/delete/', ProductDeleteView.as_view(), name='product-delete'),
-]
+]+static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # Include the router's URLs in the urlpatterns
 urlpatterns += router.urls
-if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
