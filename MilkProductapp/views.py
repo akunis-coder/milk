@@ -217,15 +217,15 @@ def select_supplier(request):
 @permission_classes([IsAuthenticated])  # Ensure user is authenticated
 def get_suppliers(request):
     current_user_mobile = request.user.userregistration.mobile_number  # Get current user's mobile number
-
+ 
     # Retrieve suppliers who have at least one invoice and exclude the current user
     suppliers = UserRegistration.objects.filter(userprofile__verification='supplier').exclude(mobile_number=current_user_mobile)
-
+ 
     # Filter suppliers based on their invoice count
     suppliers_with_invoices = [
         supplier for supplier in suppliers if Invoice.objects.filter(customerMobileNumber=supplier.mobile_number).exists()
     ]
-
+ 
     # If there are suppliers with invoices
     if suppliers_with_invoices:
         return Response({'suppliers': [supplier.mobile_number for supplier in suppliers_with_invoices]})
