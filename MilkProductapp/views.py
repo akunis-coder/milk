@@ -556,6 +556,56 @@ def order_history(request):
     orders = Invoice.objects.filter(customerName=request.user.username)  # Get orders for the user
     return Response({'orders': [{'id': order.id, 'price': str(order.price)} for order in orders]})
 
+# @api_view(['GET', 'POST'])
+# @permission_classes([IsAuthenticated])
+# def manage_negotiated_prices(request):
+#     current_supplier_mobile = request.user.userregistration.mobile_number
+#     if request.method == 'POST':
+#         logger.info('POST request received for manage_negotiated_prices.')
+#         customer_id = request.data.get('customer_id')
+#         product_id = request.data.get('product_id')
+#         new_price = request.data.get('new_price')
+#         logger.info(f'Incoming POST data: {request.data}')
+#         if customer_id and product_id and new_price is not None:
+#             try:
+#                 selected_customer = get_object_or_404(UserRegistration, id=customer_id)
+#                 logger.info(f'Selected Customer: {selected_customer}')
+#                 product = get_object_or_404(Product, productid=product_id)
+#                 logger.info(f'Selected Product: {product}')
+#                 supplier_relation, created = SupplierCustomerRelation.objects.get_or_create(supplier_mobile_number=current_supplier_mobile,customer_mobile_number=selected_customer.mobile_number)
+#                 logger.info(f'Supplier-Customer Relation: {supplier_relation}')
+#                 negotiable_price, created = NegotiablePrice.objects.update_or_create(relationship=supplier_relation,product=product,defaults={'final_price': new_price})
+#                 logger.info(f'NegotiablePrice created/updated: {negotiable_price} (Created: {created})')
+#                 return Response({'success': True, 'message': 'Product price updated successfully.'})
+#             except Exception as e:
+#                 logger.error(f'Error while processing request: {e}')
+#                 return Response({'error': 'Error updating price'}, status=500)
+#         logger.warning('Invalid data provided: customer_id, product_id, or new_price is missing.')
+#         return Response({'error': 'Invalid data provided.'}, status=400)
+#     else:  # Handle GET request
+#         logger.info('GET request received for manage_negotiated_prices.')
+#         customer_relations = SupplierCustomerRelation.objects.filter(supplier_mobile_number=current_supplier_mobile)
+#         customer_ids = customer_relations.values_list('customer_mobile_number', flat=True)
+#         customers = UserRegistration.objects.filter(mobile_number__in=customer_ids)
+#         products = Product.objects.all()
+#         product_list = []
+#         for product in products:
+#             try:
+#                 brand_name = product.brandID.brandName
+#             except ObjectDoesNotExist:
+#                 brand_name = 'Unknown Brand'  # Handle missing brand            
+#             final_price = None
+#             for relation in customer_relations:
+#                 negotiated_price = NegotiablePrice.objects.filter(relationship=relation,product=product).first()
+#                 if negotiated_price:
+#                     final_price = str(negotiated_price.final_price)
+#                     break
+#             if final_price is None:
+#                 final_price = str(product.productPrice)                                                
+#             product_list.append({'id': product.productid,'final_price': final_price, 'image_url': request.build_absolute_uri(product.productImage.url) if product.productImage else None,'category': product.productCategory,'type': product.productType,'volume': product.productVolume, 'description': product.productDescription, 'brand': brand_name,})
+#         logger.info('Returning customers and products as JSON.')
+#         return Response({'customers': [{'id': customer.id, 'mobile_number': customer.mobile_number} for customer in customers],'products': product_list})
+
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def manage_negotiated_prices(request):
@@ -569,12 +619,16 @@ def manage_negotiated_prices(request):
         if customer_id and product_id and new_price is not None:
             try:
                 selected_customer = get_object_or_404(UserRegistration, id=customer_id)
-                logger.info(f'Selected Customer: {selected_customer}')
                 product = get_object_or_404(Product, productid=product_id)
-                logger.info(f'Selected Product: {product}')
-                supplier_relation, created = SupplierCustomerRelation.objects.get_or_create(supplier_mobile_number=current_supplier_mobile,customer_mobile_number=selected_customer.mobile_number)
-                logger.info(f'Supplier-Customer Relation: {supplier_relation}')
-                negotiable_price, created = NegotiablePrice.objects.update_or_create(relationship=supplier_relation,product=product,defaults={'final_price': new_price})
+                supplier_relation, created = SupplierCustomerRelation.objects.get_or_create(
+                    supplier_mobile_number=current_supplier_mobile,
+                    customer_mobile_number=selected_customer.mobile_number
+                )
+                negotiable_price, created = NegotiablePrice.objects.update_or_create(
+                    relationship=supplier_relation,
+                    product=product,
+                    defaults={'final_price': new_price}
+                )
                 logger.info(f'NegotiablePrice created/updated: {negotiable_price} (Created: {created})')
                 return Response({'success': True, 'message': 'Product price updated successfully.'})
             except Exception as e:
@@ -582,30 +636,39 @@ def manage_negotiated_prices(request):
                 return Response({'error': 'Error updating price'}, status=500)
         logger.warning('Invalid data provided: customer_id, product_id, or new_price is missing.')
         return Response({'error': 'Invalid data provided.'}, status=400)
+ 
     else:  # Handle GET request
         logger.info('GET request received for manage_negotiated_prices.')
         customer_relations = SupplierCustomerRelation.objects.filter(supplier_mobile_number=current_supplier_mobile)
         customer_ids = customer_relations.values_list('customer_mobile_number', flat=True)
         customers = UserRegistration.objects.filter(mobile_number__in=customer_ids)
-        products = Product.objects.all()
+        products = Product.objects.prefetch_related('brandID').all()
+        negotiated_prices = NegotiablePrice.objects.filter(
+            relationship__in=customer_relations,
+            product__in=products
+        ).select_related('relationship', 'product')
+ 
+        price_map = {f"{np.relationship.customer_mobile_number}_{np.product.productid}": str(np.final_price) for np in negotiated_prices}
         product_list = []
         for product in products:
-            try:
-                brand_name = product.brandID.brandName
-            except ObjectDoesNotExist:
-                brand_name = 'Unknown Brand'  # Handle missing brand            
-            final_price = None
-            for relation in customer_relations:
-                negotiated_price = NegotiablePrice.objects.filter(relationship=relation,product=product).first()
-                if negotiated_price:
-                    final_price = str(negotiated_price.final_price)
-                    break
-            if final_price is None:
-                final_price = str(product.productPrice)                                                
-            product_list.append({'id': product.productid,'final_price': final_price, 'image_url': request.build_absolute_uri(product.productImage.url) if product.productImage else None,'category': product.productCategory,'type': product.productType,'volume': product.productVolume, 'description': product.productDescription, 'brand': brand_name,})
+            brand_name = product.brandID.brandName if product.brandID else 'Unknown Brand'
+            final_price = price_map.get(f"{current_supplier_mobile}_{product.productid}", str(product.productPrice))
+            product_list.append({
+                'id': product.productid,
+                'final_price': final_price,
+                'image_url': request.build_absolute_uri(product.productImage.url) if product.productImage else None,
+                'category': product.productCategory,
+                'type': product.productType,
+                'volume': product.productVolume,
+                'description': product.productDescription,
+                'brand': brand_name,
+            })
         logger.info('Returning customers and products as JSON.')
-        return Response({'customers': [{'id': customer.id, 'mobile_number': customer.mobile_number} for customer in customers],'products': product_list})
-
+        return Response({
+            'customers': [{'id': customer.id, 'mobile_number': customer.mobile_number} for customer in customers],
+            'products': product_list
+        })
+    
 @api_view(['POST'])
 def add_products(request):
     serializer = ProductSerializer(data=request.data)
