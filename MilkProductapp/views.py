@@ -405,11 +405,64 @@ def products(request):
 #     return Response({'success': True, 'products': product_list})
 
 # Add a product to the cart
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])  # Ensure user is authenticated
+# def add_to_cart(request, product_id):
+#     product = get_object_or_404(Product, productid=product_id)  # Get product by ID
+#     cart, _ = Cart.objects.get_or_create(user=request.user.userregistration)  # Get or create cart for the user
+ 
+#     # Get the quantity from the request data
+#     quantity = request.data.get('quantity', 1)  # Default to 1 if not provided
+#     try:
+#         quantity = int(quantity)  # Ensure quantity is an integer
+#         if quantity <= 0:
+#             return Response({'success': False, 'message': 'Quantity must be greater than 0'}, status=400)
+#     except ValueError:
+#         return Response({'success': False, 'message': 'Invalid quantity'}, status=400)
+ 
+#     # Retrieve the supplier relationship
+#     user_mobile = request.user.userregistration.mobile_number
+#     supplier_relation = SupplierCustomerRelation.objects.filter(customer_mobile_number=user_mobile).order_by('-updated_at').first()
+   
+#     if not supplier_relation:
+#         return Response({'success': False, 'message': "No supplier selected"}, status=400)
+ 
+#     # Get the selected supplier's mobile number
+#     supplier_mobile = supplier_relation.supplier_mobile_number
+ 
+#     # Check if there's a negotiated price for the product for the selected supplier
+#     negotiated_price_query = NegotiablePrice.objects.filter(
+#         relationship__customer_mobile_number=user_mobile,
+#         product=product
+#     )
+ 
+#     # Set price to use
+#     if negotiated_price_query.exists():
+#         negotiated_price = negotiated_price_query.first().final_price
+#         price_to_use = Decimal(str(negotiated_price))  # Use negotiated price
+#     else:
+#         price_to_use = Decimal(str(product.productPrice))  # Use base price
+ 
+#     cart_item, created = CartItem.objects.get_or_create(cart=cart, productItem=product)  # Get or create cart item
+ 
+#     # Update quantity
+#     if created:
+#         cart_item.quantity = quantity  # If created, set the provided quantity
+#     else:
+#         cart_item.quantity += quantity  # If exists, increase by the provided quantity
+ 
+#     cart_item.price = price_to_use  # Set the price for the cart item
+#     cart_item.save()  # Save the cart item
+ 
+#     return Response({'success': True, 'message': 'Product added to cart!', 'quantity': cart_item.quantity})
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])  # Ensure user is authenticated
 def add_to_cart(request, product_id):
     product = get_object_or_404(Product, productid=product_id)  # Get product by ID
     cart, _ = Cart.objects.get_or_create(user=request.user.userregistration)  # Get or create cart for the user
+ 
+    # Get the quantity from the request data
     quantity = request.data.get('quantity', 1)  # Default to 1 if not provided
     try:
         quantity = int(quantity)  # Ensure quantity is an integer
@@ -417,24 +470,48 @@ def add_to_cart(request, product_id):
             return Response({'success': False, 'message': 'Quantity must be greater than 0'}, status=400)
     except ValueError:
         return Response({'success': False, 'message': 'Invalid quantity'}, status=400)
+ 
+    # Retrieve the supplier relationship
     user_mobile = request.user.userregistration.mobile_number
     supplier_relation = SupplierCustomerRelation.objects.filter(customer_mobile_number=user_mobile).order_by('-updated_at').first()
+   
     if not supplier_relation:
         return Response({'success': False, 'message': "No supplier selected"}, status=400)
+ 
+    # Get the selected supplier's mobile number
     supplier_mobile = supplier_relation.supplier_mobile_number
-    negotiated_price_query = NegotiablePrice.objects.filter(relationship__customer_mobile_number=user_mobile,product=product)
+ 
+    # Fetch relationships and negotiate prices
+    relationships = SupplierCustomerRelation.objects.filter(
+        supplier_mobile_number=supplier_mobile,
+        customer_mobile_number=user_mobile
+    )
+ 
+    # Fetch negotiated prices for the product
+    negotiated_price_query = NegotiablePrice.objects.filter(
+        relationship__in=relationships,
+        product=product
+    ).order_by('-updated_at')  # Get the latest price
+ 
+    # Determine the price to use
     if negotiated_price_query.exists():
         negotiated_price = negotiated_price_query.first().final_price
         price_to_use = Decimal(str(negotiated_price))  # Use negotiated price
     else:
         price_to_use = Decimal(str(product.productPrice))  # Use base price
+ 
+    # Get or create the cart item
     cart_item, created = CartItem.objects.get_or_create(cart=cart, productItem=product)  # Get or create cart item
+ 
+    # Update quantity
     if created:
         cart_item.quantity = quantity  # If created, set the provided quantity
     else:
         cart_item.quantity += quantity  # If exists, increase by the provided quantity
+ 
     cart_item.price = price_to_use  # Set the price for the cart item
     cart_item.save()  # Save the cart item
+ 
     return Response({'success': True, 'message': 'Product added to cart!', 'quantity': cart_item.quantity})
 
 @api_view(['POST'])
