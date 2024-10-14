@@ -269,44 +269,140 @@ def get_suppliers(request):
 #         product_data = {'id': product.productid,'Final_Price': final_price,'image_url': image_url,'category': product.productCategory,'type': product.productType,'volume': product.productVolume,'description': product.productDescription,'brand': brand_name}
 #         product_list.append(product_data)
 #     return Response({'success': True, 'products': product_list})
+from rest_framework.decorators import api_view, permission_classes
 
+from rest_framework.permissions import IsAuthenticated
+
+from rest_framework.response import Response
+
+from MilkProductapp.models import Product, SupplierCustomerRelation, NegotiablePrice
+
+from bson import Decimal128
+
+import time
+ 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])  # Ensure user is authenticated
+
+@permission_classes([IsAuthenticated])
+
 def products(request):
-    user_mobile = request.user.userregistration.mobile_number  # Get current user's mobile number
+
+    start_time = time.time()
+ 
+    user_mobile = request.user.userregistration.mobile_number
+
     supplier_relation = SupplierCustomerRelation.objects.filter(customer_mobile_number=user_mobile).order_by('-updated_at').first()
+
     if not supplier_relation:
+
         return Response({'success': False, 'message': "No supplier selected"}, status=400)
+
     supplier_mobile = supplier_relation.supplier_mobile_number
-    products = Product.objects.all()
+
+    # Fetch all products and related data in a single go
+
+    products = Product.objects.prefetch_related('negotiableprice_set').select_related('brandID').all()
+ 
+    # Fetch all relationships and negotiated prices in one query
+
+    relationships = SupplierCustomerRelation.objects.filter(
+
+        supplier_mobile_number=supplier_mobile,
+
+        customer_mobile_number=user_mobile
+
+    )
+
+    negotiated_prices = NegotiablePrice.objects.filter(relationship__in=relationships)
+
+    # Create a dictionary for quick lookup of negotiated prices
+
+    negotiated_price_dict = {np.product.productid: np.final_price for np in negotiated_prices}
+
     product_list = []
+
     for product in products:
-        if isinstance(product.productPrice, Decimal128):
-            base_price = float(product.productPrice.to_decimal())  # Convert to Decimal first
-        else:
-            base_price = float(product.productPrice)  # Handle other types, if necessary
-        try:
-            relationship = SupplierCustomerRelation.objects.get(supplier_mobile_number=supplier_mobile,customer_mobile_number=user_mobile)
-            negotiated_price = NegotiablePrice.objects.filter(relationship=relationship,product__productid=product.productid).first()
-            if negotiated_price:
-                final_price = negotiated_price.final_price
-            else:
-                final_price = base_price
-        except SupplierCustomerRelation.DoesNotExist:
-            final_price = base_price  # Default to base price if no relationship found
-            logger.info("No relationship found between the customer and supplier.")
-        except NegotiablePrice.DoesNotExist:
-            final_price = base_price  # Default to base price if no negotiated price found
-        if isinstance(final_price, Decimal):
-            final_price = float(final_price)
-        elif hasattr(final_price, 'to_decimal'):
+
+        # Efficient price calculation
+
+        base_price = float(product.productPrice.to_decimal()) if isinstance(product.productPrice, Decimal128) else float(product.productPrice)
+
+        final_price = negotiated_price_dict.get(product.productid, base_price)
+
+        # Convert final_price to float if it's Decimal128
+
+        if isinstance(final_price, Decimal128):
+
             final_price = float(final_price.to_decimal())
-        logger.info(f"Final price for product {product.productid}: {final_price}")
-        brand_name = getattr(product.brandID, 'brandName', 'Unknown Brand')  # Handle missing brand
+
         image_url = request.build_absolute_uri(product.productImage.url) if product.productImage else None
-        product_data = {'id': product.productid,'Final_Price': final_price,'image_url': image_url,'category': product.productCategory,'type': product.productType,'volume': product.productVolume,'description': product.productDescription,'brand': brand_name}
+
+        product_data = {
+
+            'id': product.productid,
+
+            'Final_Price': final_price,
+
+            'image_url': image_url,
+
+            'category': product.productCategory,
+
+            'type': product.productType,
+
+            'volume': product.productVolume,
+
+            'description': product.productDescription,
+
+            'brand': getattr(product.brandID, 'brandName', 'Unknown Brand')
+
+        }
+
         product_list.append(product_data)
+
+    total_duration = time.time() - start_time
+
+    print(f"Total execution time: {total_duration:.4f} seconds")
+
     return Response({'success': True, 'products': product_list})
+
+ 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])  # Ensure user is authenticated
+# def products(request):
+#     user_mobile = request.user.userregistration.mobile_number  # Get current user's mobile number
+#     supplier_relation = SupplierCustomerRelation.objects.filter(customer_mobile_number=user_mobile).order_by('-updated_at').first()
+#     if not supplier_relation:
+#         return Response({'success': False, 'message': "No supplier selected"}, status=400)
+#     supplier_mobile = supplier_relation.supplier_mobile_number
+#     products = Product.objects.all()
+#     product_list = []
+#     for product in products:
+#         if isinstance(product.productPrice, Decimal128):
+#             base_price = float(product.productPrice.to_decimal())  # Convert to Decimal first
+#         else:
+#             base_price = float(product.productPrice)  # Handle other types, if necessary
+#         try:
+#             relationship = SupplierCustomerRelation.objects.get(supplier_mobile_number=supplier_mobile,customer_mobile_number=user_mobile)
+#             negotiated_price = NegotiablePrice.objects.filter(relationship=relationship,product__productid=product.productid).first()
+#             if negotiated_price:
+#                 final_price = negotiated_price.final_price
+#             else:
+#                 final_price = base_price
+#         except SupplierCustomerRelation.DoesNotExist:
+#             final_price = base_price  # Default to base price if no relationship found
+#             logger.info("No relationship found between the customer and supplier.")
+#         except NegotiablePrice.DoesNotExist:
+#             final_price = base_price  # Default to base price if no negotiated price found
+#         if isinstance(final_price, Decimal):
+#             final_price = float(final_price)
+#         elif hasattr(final_price, 'to_decimal'):
+#             final_price = float(final_price.to_decimal())
+#         logger.info(f"Final price for product {product.productid}: {final_price}")
+#         brand_name = getattr(product.brandID, 'brandName', 'Unknown Brand')  # Handle missing brand
+#         image_url = request.build_absolute_uri(product.productImage.url) if product.productImage else None
+#         product_data = {'id': product.productid,'Final_Price': final_price,'image_url': image_url,'category': product.productCategory,'type': product.productType,'volume': product.productVolume,'description': product.productDescription,'brand': brand_name}
+#         product_list.append(product_data)
+#     return Response({'success': True, 'products': product_list})
 
 # Add a product to the cart
 @api_view(['POST'])
