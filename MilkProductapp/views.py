@@ -213,6 +213,7 @@ def select_supplier(request):
 #     current_user_mobile = request.user.userregistration.mobile_number  # Get current user's mobile number
 #     suppliers = UserRegistration.objects.filter(userprofile__verification='supplier').exclude(mobile_number=current_user_mobile)
 #     return Response({'suppliers': [supplier.mobile_number for supplier in suppliers]})
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])  # Ensure user is authenticated
 def get_suppliers(request):
@@ -226,12 +227,20 @@ def get_suppliers(request):
         supplier for supplier in suppliers if Invoice.objects.filter(customerMobileNumber=supplier.mobile_number).exists()
     ]
  
-    # If there are suppliers with invoices
-    if suppliers_with_invoices:
-        return Response({'suppliers': [supplier.mobile_number for supplier in suppliers_with_invoices]})
-    else:
-        return Response({'suppliers': [], 'message': 'No suppliers with invoices found.'})
-    
+    # Create a list of supplier mobile numbers
+    supplier_numbers = [supplier.mobile_number for supplier in suppliers_with_invoices]
+ 
+    # Include the specific supplier if they are not already in the list
+    specific_supplier_mobile = '9848098480'
+    if specific_supplier_mobile not in supplier_numbers:
+        supplier_numbers.append(specific_supplier_mobile)
+ 
+    # Return the response
+    return Response({
+        'suppliers': supplier_numbers,
+        'message': 'Suppliers retrieved successfully.' if supplier_numbers else 'No suppliers found.'
+    })
+
 # @api_view(['GET'])
 # @permission_classes([IsAuthenticated])  # Ensure user is authenticated
 # def products(request):
