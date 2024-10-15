@@ -616,7 +616,7 @@ def checkout(request):
         total_price += item.quantity * item.price 
     payment_mode = request.data.get('payment_mode')  # Get payment mode from request 
     customer_mobile_number = request.user.userregistration.mobile_number   
-    supplier_customer_relation = SupplierCustomerRelation.objects.filter(customer_mobile_number=customer_mobile_number).first()
+    supplier_customer_relation = SupplierCustomerRelation.objects.filter(customer_mobile_number=customer_mobile_number).order_by('-updated_at').first()
     if not supplier_customer_relation:
         return Response({'success': False, 'message': 'No supplier found for the customer'}, status=400) 
     invoice = Invoice.objects.create(supplierName=supplier_customer_relation.supplier_name,supplierMobileNumber=supplier_customer_relation.supplier_mobile_number,customerName=request.user.username,customerMobileNumber=request.user.userregistration.mobile_number,price=total_price) 
