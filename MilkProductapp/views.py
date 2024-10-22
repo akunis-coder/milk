@@ -93,25 +93,41 @@ def register(request):
     password = request.data.get('password')
     confirm_password = request.data.get('confirm_password')
     address = request.data.get('address')
-
+   
+    # Validate that username does not contain numbers
+    if any(char.isdigit() for char in username):
+        return Response({'success': False, 'message': "Username must not contain numbers"}, status=400)
+   
+    # Validate mobile number and alternate number
+    if not (mobile_number.isdigit() and len(mobile_number) == 10):
+        return Response({'success': False, 'message': "Mobile number must be exactly 10 digits"}, status=400)
+   
+    if not (alternate_number.isdigit() and len(alternate_number) == 10):
+        return Response({'success': False, 'message': "Alternate number must be exactly 10 digits"}, status=400)
+ 
+ 
+    # Validate password and confirm password
     if password != confirm_password:
         return Response({'success': False, 'message': "Passwords do not match"}, status=400)
-
+ 
+    # Check if mobile number is already registered
     if UserRegistration.objects.filter(mobile_number=mobile_number).exists():
         return Response({'success': False, 'message': "Mobile number already registered"}, status=400)
-
+ 
     user = User.objects.create_user(username=username, password=password)
     user_registration = UserRegistration.objects.create(user=user,mobile_number=mobile_number,alternate_number=alternate_number,address=address)
     UserProfile.objects.create(user_registration=user_registration, verification='supplier')
-
+ 
     token, created = Token.objects.get_or_create(user=user)
-
+ 
     auth_login(request, user)
     return Response({
         'success': True,
         'message': "Registration successful",
         'token': token.key,
         'data': {'username': username,'mobile_number': mobile_number,'alternate_number': alternate_number,'address': address}})
+ 
+ 
 
 @api_view(['POST'])
 def login(request):
